@@ -17,15 +17,21 @@ function Capture() {
   const [showAnalyzing, setShowAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsPlayInteraction, setNeedsPlayInteraction] = useState(false);
+  const [showStartPrompt, setShowStartPrompt] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     startCamera();
+    // If camera takes too long, show a manual start button for user gesture
+    const t = setTimeout(() => {
+      if (isCameraLoading) setShowStartPrompt(true);
+    }, 1500);
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
       }
+      clearTimeout(t);
     };
   }, []);
 
@@ -34,6 +40,7 @@ function Capture() {
   const startCamera = async () => {
     setIsCameraLoading(true);
     setNeedsPlayInteraction(false);
+    setShowStartPrompt(false);
 
     // Stop any existing stream first to avoid NotReadableError on some devices
     if (streamRef.current) {
@@ -58,6 +65,7 @@ function Capture() {
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        try { videoRef.current.setAttribute('playsinline', 'true'); } catch {}
         try {
           await videoRef.current.play();
           setNeedsPlayInteraction(false);
@@ -77,6 +85,7 @@ function Capture() {
         streamRef.current = fallbackStream;
         if (videoRef.current) {
           videoRef.current.srcObject = fallbackStream;
+          try { videoRef.current.setAttribute('playsinline', 'true'); } catch {}
           try {
             await videoRef.current.play();
             setNeedsPlayInteraction(false);
@@ -472,6 +481,27 @@ function Capture() {
               animation: 'progressBar 2s ease-out forwards'
             }}></div>
           </div>
+          {showStartPrompt && (
+            <button
+              onClick={startCamera}
+              style={{
+                marginTop: '16px',
+                padding: '10px 14px',
+                backgroundColor: '#000',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                fontFamily: 'Roobert TRIAL, sans-serif',
+                fontWeight: 600,
+                fontSize: '14px',
+                letterSpacing: '-0.02em',
+                textTransform: 'uppercase',
+                cursor: 'pointer'
+              }}
+            >
+              Start Camera
+            </button>
+          )}
         </div>
       ) : (
         <>
