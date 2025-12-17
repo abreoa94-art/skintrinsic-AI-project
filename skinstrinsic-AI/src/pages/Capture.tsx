@@ -13,7 +13,7 @@ function Capture() {
   const streamRef = useRef<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isCameraLoading, setIsCameraLoading] = useState(true);
+  
   const [showAnalyzing, setShowAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsPlayInteraction, setNeedsPlayInteraction] = useState(false);
@@ -57,7 +57,6 @@ function Capture() {
   
 
   const startCamera = useCallback(async () => {
-    setIsCameraLoading(true);
     setNeedsPlayInteraction(false);
     setShowStartPrompt(false);
     setIsPreviewReady(false);
@@ -86,6 +85,8 @@ function Capture() {
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         videoRef.current.setAttribute('playsinline', 'true');
+        await waitForMetadata(videoRef.current);
+        setIsPreviewReady(true);
         try {
           await videoRef.current.play();
           setNeedsPlayInteraction(false);
@@ -93,12 +94,12 @@ function Capture() {
         } catch (e) {
           // Some browsers require a user gesture to play
           setNeedsPlayInteraction(true);
+          setShowStartPrompt(true);
           console.warn(e);
           setLastError(toErr(e));
         }
       }
       setError(null);
-      setIsCameraLoading(false);
       // Verify frames actually advance; if not, try alternate camera
       setTimeout(async () => {
         const v = videoRef.current;
@@ -138,6 +139,8 @@ function Capture() {
             if (videoRef.current) {
               videoRef.current.srcObject = stream!;
               videoRef.current.setAttribute('playsinline', 'true');
+              await waitForMetadata(videoRef.current);
+              setIsPreviewReady(true);
               await videoRef.current.play();
               await markPreviewReadyWhenStable(videoRef.current);
             }
@@ -164,6 +167,7 @@ function Capture() {
             await markPreviewReadyWhenStable(videoRef.current);
           } catch (e) {
             setNeedsPlayInteraction(true);
+            setShowStartPrompt(true);
             console.warn(e);
             setLastError(toErr(e));
           }
@@ -183,8 +187,9 @@ function Capture() {
         }
         setError(friendly);
         setLastError(toErr(innerErr));
+        setShowStartPrompt(true);
       } finally {
-        setIsCameraLoading(false);
+        // no-op
       }
     }
   }, [triedAlternateFacing, markPreviewReadyWhenStable]);
@@ -192,9 +197,9 @@ function Capture() {
   // Now that callbacks are defined, set up the effect
   useEffect(() => {
     startCamera();
-    // If camera takes too long, show a manual start button for user gesture
+    // After a short delay, surface the Start Camera button (if still needed)
     const t = setTimeout(() => {
-      if (isCameraLoading) setShowStartPrompt(true);
+      setShowStartPrompt(true);
     }, 1500);
     // Video element event listeners for diagnostics
     const v = videoRef.current;
@@ -219,7 +224,7 @@ function Capture() {
       if (debugEnabled && v) handlers.forEach(([evt, h]) => v.removeEventListener(evt, h));
       clearTimeout(t);
     };
-  }, [isCameraLoading, startCamera, debugEnabled]);
+  }, [startCamera, debugEnabled]);
 
   
 
@@ -504,116 +509,25 @@ function Capture() {
         className="capture-header-left"
       />
 
-      {!isPreviewReady ? (
-        <div className="flex flex-col items-center justify-center" style={{ minHeight: 'calc(100vh - 64px)' }}>
+      {/* Always render content; overlay loader while preparing */}
+      {(!isPreviewReady) && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(to bottom, rgba(239,246,255,0.9), rgba(255,255,255,0.9))' }}>
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px', minWidth: '300px' }}>
-            <img 
-              src={rectangleBig} 
-              alt="Big rectangle"
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                zIndex: 1,
-                width: '280px',
-                height: 'auto',
-                filter: 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5))',
-                opacity: 0.9,
-                animation: 'rotateFast 20s linear infinite'
-              }}
-            />
-            <img 
-              src={rectangleMedium} 
-              alt="Medium rectangle"
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                zIndex: 2,
-                width: '230px',
-                height: 'auto',
-                filter: 'drop-shadow(0 0 10px rgba(0, 0, 0, 0.6))',
-                opacity: 0.95,
-                animation: 'rotateMedium 30s linear infinite'
-              }}
-            />
-            <img 
-              src={rectangleSmall} 
-              alt="Small rectangle"
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                zIndex: 3,
-                width: '180px',
-                height: 'auto',
-                filter: 'drop-shadow(0 0 8px rgba(0, 0, 0, 0.7))',
-                opacity: 1,
-                animation: 'rotateSlow 40s linear infinite'
-              }}
-            />
-            <img 
-              src={cameraIcon}
-              alt="Camera"
-              style={{
-                width: '80px',
-                height: '80px',
-                position: 'relative',
-                zIndex: 4,
-                animation: 'pulse 2s ease-in-out infinite'
-              }}
-            />
+            <img src={rectangleBig} alt="Big rectangle" style={{ position: 'absolute', top: '50%', left: '50%', zIndex: 1, width: '280px', height: 'auto', filter: 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5))', opacity: 0.9, animation: 'rotateFast 20s linear infinite' }} />
+            <img src={rectangleMedium} alt="Medium rectangle" style={{ position: 'absolute', top: '50%', left: '50%', zIndex: 2, width: '230px', height: 'auto', filter: 'drop-shadow(0 0 10px rgba(0, 0, 0, 0.6))', opacity: 0.95, animation: 'rotateMedium 30s linear infinite' }} />
+            <img src={rectangleSmall} alt="Small rectangle" style={{ position: 'absolute', top: '50%', left: '50%', zIndex: 3, width: '180px', height: 'auto', filter: 'drop-shadow(0 0 8px rgba(0, 0, 0, 0.7))', opacity: 1, animation: 'rotateSlow 40s linear infinite' }} />
+            <img src={cameraIcon} alt="Camera" style={{ width: '80px', height: '80px', position: 'relative', zIndex: 4, animation: 'pulse 2s ease-in-out infinite' }} />
           </div>
-          <p style={{
-            fontFamily: 'Roobert TRIAL, sans-serif',
-            fontWeight: 600,
-            fontSize: '18px',
-            letterSpacing: '-0.02em',
-            color: '#1A1B1C',
-            textTransform: 'uppercase',
-            marginTop: '32px',
-            marginBottom: '16px'
-          }}>
-            Setting Up Camera
-          </p>
-          <div style={{
-            width: '200px',
-            height: '4px',
-            backgroundColor: '#E5E7EB',
-            borderRadius: '2px',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              height: '100%',
-              backgroundColor: '#000000',
-              borderRadius: '2px',
-              animation: 'progressBar 2s ease-out forwards'
-            }}></div>
+          <p style={{ fontFamily: 'Roobert TRIAL, sans-serif', fontWeight: 600, fontSize: '18px', letterSpacing: '-0.02em', color: '#1A1B1C', textTransform: 'uppercase', marginTop: '32px', marginBottom: '16px' }}>Setting Up Camera</p>
+          <div style={{ width: '200px', height: '4px', backgroundColor: '#E5E7EB', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', backgroundColor: '#000000', borderRadius: '2px', animation: 'progressBar 2s ease-out forwards' }}></div>
           </div>
-          {showStartPrompt && (
-            <button
-              onClick={startCamera}
-              style={{
-                marginTop: '16px',
-                padding: '10px 14px',
-                backgroundColor: '#000',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                fontFamily: 'Roobert TRIAL, sans-serif',
-                fontWeight: 600,
-                fontSize: '14px',
-                letterSpacing: '-0.02em',
-                textTransform: 'uppercase',
-                cursor: 'pointer'
-              }}
-            >
-              Start Camera
-            </button>
+          {(showStartPrompt || needsPlayInteraction) && (
+            <button onClick={startCamera} style={{ marginTop: '16px', padding: '10px 14px', backgroundColor: '#000', color: '#fff', border: 'none', borderRadius: '8px', fontFamily: 'Roobert TRIAL, sans-serif', fontWeight: 600, fontSize: '14px', letterSpacing: '-0.02em', textTransform: 'uppercase', cursor: 'pointer' }}>Start Camera</button>
           )}
         </div>
-      ) : (
-        <>
+      )}
+      <>
           <div className="capture-main flex flex-col items-center justify-center" style={{ minHeight: 'calc(100vh - 64px)', padding: '40px 32px' }}>
         <div className="capture-card" style={{ width: '100%', maxWidth: '800px', backgroundColor: '#FFFFFF', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)', padding: '32px' }}>
           {/* Title moved into camera container as overlay badge */}
@@ -826,7 +740,6 @@ function Capture() {
         </div>
       </div>
         </>
-      )}
 
       <button className="capture-back-button" onClick={handleBack} style={{ position: 'fixed', bottom: '32px', left: '32px', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: '12px' }}>
         <img 
