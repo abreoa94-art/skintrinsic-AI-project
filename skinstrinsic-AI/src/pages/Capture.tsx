@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import arrowLeft from '../assets/arrow-left.svg';
 import cameraIcon from '../assets/camera-icon.svg';
@@ -24,6 +24,145 @@ function Capture() {
   const [lastError, setLastError] = useState<{name?: string; message?: string}>({});
   const navigate = useNavigate();
 
+  const toErr = (e: unknown): { name?: string; message?: string } => {
+    const err = e as Partial<DOMException> & Partial<Error>;
+    return { name: err?.name, message: err?.message };
+  };
+
+  
+
+  
+
+  const startCamera = useCallback(async () => {
+    setIsCameraLoading(true);
+    setNeedsPlayInteraction(false);
+    setShowStartPrompt(false);
+
+    // Stop any existing stream first to avoid NotReadableError on some devices
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      } catch (e) { console.warn(e); }
+      streamRef.current = null;
+    }
+
+    const baseConstraints: MediaStreamConstraints = {
+      video: {
+        facingMode: { ideal: 'user' as const },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    };
+
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia(baseConstraints);
+      streamRef.current = mediaStream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        try {
+          await videoRef.current.play();
+          setNeedsPlayInteraction(false);
+        } catch (e) {
+          // Some browsers require a user gesture to play
+          setNeedsPlayInteraction(true);
+          console.warn(e);
+          setLastError(toErr(e));
+        }
+      }
+      setError(null);
+      setIsCameraLoading(false);
+      // Verify frames actually advance; if not, try alternate camera
+      setTimeout(async () => {
+        const v = videoRef.current;
+        if (!v) return;
+        const frozen = v.currentTime === 0;
+        if (frozen && !triedAlternateFacing) {
+          try {
+            setTriedAlternateFacing(true);
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const currentTrack = streamRef.current?.getVideoTracks()[0] || null;
+            const currentId = currentTrack?.getSettings()?.deviceId;
+            const videoInputs = devices.filter(d => d.kind === 'videoinput');
+            const alternate = videoInputs.find(d => d.deviceId && d.deviceId !== currentId) || videoInputs[0];
+            // Stop current stream
+            if (streamRef.current) {
+              streamRef.current.getTracks().forEach(t => t.stop());
+              streamRef.current = null;
+            }
+            let constraints: MediaStreamConstraints = { video: true, audio: false };
+            if (alternate?.deviceId) {
+              constraints = { video: { deviceId: { exact: alternate.deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false };
+            } else {
+              const facing: ConstrainDOMStringParameters = { ideal: 'environment' };
+              constraints = { video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false };
+            }
+            let stream: MediaStream | null = null;
+            try {
+              stream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (e) {
+              if ((e as DOMException)?.name === 'OverconstrainedError') {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+              } else {
+                throw e;
+              }
+            }
+            streamRef.current = stream!;
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream!;
+              videoRef.current.setAttribute('playsinline', 'true');
+              await videoRef.current.play();
+            }
+            setError(null);
+          } catch (e) { 
+            console.warn('Alternate facing failed', e); 
+            setLastError(toErr(e)); 
+          }
+        }
+      }, 1200);
+    } catch (err: unknown) {
+      // Fallback with very loose constraints
+      console.error(err);
+      setLastError(toErr(err));
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        streamRef.current = fallbackStream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+          videoRef.current.setAttribute('playsinline', 'true');
+          try {
+            await videoRef.current.play();
+            setNeedsPlayInteraction(false);
+          } catch (e) {
+            setNeedsPlayInteraction(true);
+            console.warn(e);
+            setLastError(toErr(e));
+          }
+        }
+        setError(null);
+      } catch (innerErr: unknown) {
+        const name = (innerErr as DOMException)?.name || '';
+        let friendly = 'Unable to access camera. Please check permissions and try again.';
+        if (name === 'NotAllowedError' || name === 'SecurityError') {
+          friendly = 'Camera permission was denied. Enable permissions in your browser settings.';
+        } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+          friendly = 'No camera device found. Please connect a camera and try again.';
+        } else if (name === 'NotReadableError') {
+          friendly = 'Camera is in use by another app. Close other apps and retry.';
+        } else if (name === 'OverconstrainedError') {
+          friendly = 'Requested resolution not supported. Try again with default settings.';
+        }
+        setError(friendly);
+        setLastError(toErr(innerErr));
+      } finally {
+        setIsCameraLoading(false);
+      }
+    }
+  }, [triedAlternateFacing]);
+
+  // Now that callbacks are defined, set up the effect
   useEffect(() => {
     startCamera();
     // If camera takes too long, show a manual start button for user gesture
@@ -53,149 +192,9 @@ function Capture() {
       if (v) handlers.forEach(([evt, h]) => v.removeEventListener(evt, h));
       clearTimeout(t);
     };
-  }, []);
+  }, [isCameraLoading, startCamera]);
 
   
-
-  const startCamera = async () => {
-    setIsCameraLoading(true);
-    setNeedsPlayInteraction(false);
-    setShowStartPrompt(false);
-
-    // Stop any existing stream first to avoid NotReadableError on some devices
-    if (streamRef.current) {
-      try {
-        streamRef.current.getTracks().forEach(t => t.stop());
-      } catch (e) { console.warn(e); }
-      streamRef.current = null;
-    }
-
-    const baseConstraints: MediaStreamConstraints = {
-      video: {
-        facingMode: { ideal: 'user' as const },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      },
-      audio: false
-    };
-
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia(baseConstraints);
-      streamRef.current = mediaStream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        try { videoRef.current.setAttribute('playsinline', 'true'); } catch {}
-        try {
-          await videoRef.current.play();
-          setNeedsPlayInteraction(false);
-        } catch (e) {
-          // Some browsers require a user gesture to play
-          setNeedsPlayInteraction(true);
-          console.warn(e);
-          setLastError({ name: (e as any)?.name, message: (e as any)?.message });
-        }
-      }
-      setError(null);
-      setIsCameraLoading(false);
-      // Verify frames actually advance; if not, try alternate camera
-      setTimeout(async () => {
-        const v = videoRef.current;
-        if (!v) return;
-        const frozen = v.currentTime === 0;
-        if (frozen && !triedAlternateFacing) {
-          try {
-            await switchFacingMode();
-          } catch (e) { console.warn('switchFacingMode failed', e); }
-        }
-      }, 1200);
-    } catch (err: unknown) {
-      // Fallback with very loose constraints
-      console.error(err);
-      setLastError({ name: (err as any)?.name, message: (err as any)?.message });
-      try {
-        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        streamRef.current = fallbackStream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = fallbackStream;
-          try { videoRef.current.setAttribute('playsinline', 'true'); } catch {}
-          try {
-            await videoRef.current.play();
-            setNeedsPlayInteraction(false);
-          } catch (e) {
-            setNeedsPlayInteraction(true);
-            console.warn(e);
-            setLastError({ name: (e as any)?.name, message: (e as any)?.message });
-          }
-        }
-        setError(null);
-      } catch (innerErr: unknown) {
-        const name = (innerErr as DOMException)?.name || '';
-        let friendly = 'Unable to access camera. Please check permissions and try again.';
-        if (name === 'NotAllowedError' || name === 'SecurityError') {
-          friendly = 'Camera permission was denied. Enable permissions in your browser settings.';
-        } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-          friendly = 'No camera device found. Please connect a camera and try again.';
-        } else if (name === 'NotReadableError') {
-          friendly = 'Camera is in use by another app. Close other apps and retry.';
-        } else if (name === 'OverconstrainedError') {
-          friendly = 'Requested resolution not supported. Try again with default settings.';
-        }
-        setError(friendly);
-        setLastError({ name: (innerErr as any)?.name, message: (innerErr as any)?.message });
-      } finally {
-        setIsCameraLoading(false);
-      }
-    }
-  };
-
-  const switchFacingMode = async () => {
-    // Try to switch to an alternate video input to recover from black preview
-    setTriedAlternateFacing(true);
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const currentTrack = streamRef.current?.getVideoTracks()[0] || null;
-      const currentId = currentTrack?.getSettings()?.deviceId;
-      const videoInputs = devices.filter(d => d.kind === 'videoinput');
-      const alternate = videoInputs.find(d => d.deviceId && d.deviceId !== currentId) || videoInputs[0];
-
-      // Stop current stream
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-        streamRef.current = null;
-      }
-
-      let constraints: MediaStreamConstraints = { video: true, audio: false };
-      if (alternate?.deviceId) {
-        constraints = { video: { deviceId: { exact: alternate.deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false };
-      } else {
-        // Fall back to ideal facingMode instead of exact to avoid OverconstrainedError
-        constraints = { video: { facingMode: { ideal: 'environment' } as any, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false };
-      }
-
-      let stream: MediaStream | null = null;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (e: any) {
-        // If still overconstrained, last fallback
-        if (e?.name === 'OverconstrainedError') {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        } else {
-          throw e;
-        }
-      }
-      streamRef.current = stream!;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream!;
-        try { videoRef.current.setAttribute('playsinline', 'true'); } catch {}
-        await videoRef.current.play();
-      }
-      setError(null);
-    } catch (e) {
-      console.warn('Alternate facing failed', e);
-      setLastError({ name: (e as any)?.name, message: (e as any)?.message });
-    }
-  };
 
   const capturePhoto = () => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -723,7 +722,7 @@ function Capture() {
                   const t = streamRef.current?.getVideoTracks()[0];
                   if (!t) return 'none';
                   const s = t.getSettings();
-                  return `ready=${t.readyState} muted=${(videoRef.current as any)?.muted ?? false} label="${t.label}" dev=${s.deviceId || ''} facing=${(s as any).facingMode || ''} ${s.width || ''}x${s.height || ''} fps=${s.frameRate || ''}`;
+                  return `ready=${t.readyState} muted=${videoRef.current?.muted ?? false} label="${t.label}" dev=${s.deviceId || ''} facing=${s.facingMode || ''} ${s.width || ''}x${s.height || ''} fps=${s.frameRate || ''}`;
                 })()}
               </div>
               {lastError?.name && (

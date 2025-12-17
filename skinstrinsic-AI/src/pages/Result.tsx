@@ -1,5 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useRef, useState } from 'react';
 import cameraIcon from '../assets/camera-icon.svg';
 import galleryIcon from '../assets/gallery-icon.svg';
 import rectangleSmall from '../assets/rectangle-small.svg';
@@ -14,6 +14,10 @@ import NavigationButton from '../components/NavigationButton';
 function Result() {
   const navigate = useNavigate();
   const [showCameraModal, setShowCameraModal] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showAnalyzing, setShowAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleBack = () => {
     window.history.back();
@@ -31,6 +35,56 @@ function Result() {
 
   const handleDenyCamera = () => {
     setShowCameraModal(false);
+  };
+
+  const handleGalleryClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Image size must be less than 10MB.');
+      return;
+    }
+    setError(null);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const dataUrl = reader.result as string;
+      await submitImage(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const submitImage = async (dataUrl: string) => {
+    try {
+      setIsUploading(true);
+      setShowAnalyzing(true);
+      const base64String = dataUrl.split(',')[1];
+      const response = await fetch('https://us-central1-api-skinstric-ai.cloudfunctions.net/skinstricPhaseTwo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64String })
+      });
+      if (!response.ok) throw new Error('Failed to upload image');
+      const data = await response.json();
+      setTimeout(() => {
+        navigate('/analysis', { state: { apiResponse: data } });
+      }, 800);
+    } catch (e) {
+      console.error('Upload error:', e);
+      setError('Failed to upload image. Please try again.');
+      setShowAnalyzing(false);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -179,9 +233,9 @@ function Result() {
           </div>
         </div>
 
-        {/* Gallery Icon - Select */}
-        <Link 
-          to="/select"
+        {/* Gallery Icon - Open file chooser */}
+        <div 
+          onClick={handleGalleryClick}
           style={{
             textDecoration: 'none',
             cursor: 'pointer',
@@ -311,7 +365,8 @@ function Result() {
               </p>
             </div>
           </div>
-        </Link>
+        </div>
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
       </div>
 
       {/* Camera Permission Modal */}
@@ -439,6 +494,44 @@ function Result() {
         className="result-back-button"
         position={{ bottom: '32px', left: '32px' }}
       />
+
+      {/* Upload/analyzing overlay for gallery flow */}
+      {showAnalyzing && (
+        <div 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            backgroundColor: 'rgba(0, 0, 0, 0.7)', 
+            zIndex: 1000, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center' 
+          }}
+        >
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            padding: '48px',
+            textAlign: 'center',
+            minWidth: '400px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)'
+          }}>
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '200px', minWidth: '200px', marginBottom: '24px' }}>
+              <img src={rectangleBig} alt="Big rectangle" style={{ position: 'absolute', top: '50%', left: '50%', zIndex: 1, width: '180px', height: 'auto', filter: 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5))', opacity: 0.9, transform: 'translate(-50%, -50%)', animation: 'rotateFast 20s linear infinite' }} />
+              <img src={rectangleMedium} alt="Medium rectangle" style={{ position: 'absolute', top: '50%', left: '50%', zIndex: 2, width: '140px', height: 'auto', filter: 'drop-shadow(0 0 10px rgba(0, 0, 0, 0.6))', opacity: 0.95, transform: 'translate(-50%, -50%)', animation: 'rotateMedium 30s linear infinite' }} />
+              <img src={rectangleSmall} alt="Small rectangle" style={{ position: 'absolute', top: '50%', left: '50%', zIndex: 3, width: '100px', height: 'auto', filter: 'drop-shadow(0 0 8px rgba(0, 0, 0, 0.7))', opacity: 1, transform: 'translate(-50%, -50%)', animation: 'rotateSlow 40s linear infinite' }} />
+              <img src={cameraIcon} alt="Camera" style={{ width: '60px', height: '60px', position: 'relative', zIndex: 4, animation: 'pulse 2s ease-in-out infinite' }} />
+            </div>
+            <p style={{ fontFamily: 'Roobert TRIAL, sans-serif', fontWeight: 600, fontSize: '24px', letterSpacing: '-0.02em', color: '#1A1B1C', textTransform: 'uppercase', margin: 0 }}>
+              {isUploading ? 'Uploading...' : 'Analyzing Photo...'}
+            </p>
+            {error && <p style={{ marginTop: '12px', color: '#B91C1C', fontFamily: 'Roobert TRIAL, sans-serif' }}>{error}</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
