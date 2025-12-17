@@ -17,7 +17,6 @@ function Capture() {
   const [showAnalyzing, setShowAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsPlayInteraction, setNeedsPlayInteraction] = useState(false);
-  const [showStartPrompt, setShowStartPrompt] = useState(false);
   const [triedAlternateFacing, setTriedAlternateFacing] = useState(false);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
@@ -58,7 +57,6 @@ function Capture() {
 
   const startCamera = useCallback(async () => {
     setNeedsPlayInteraction(false);
-    setShowStartPrompt(false);
     setIsPreviewReady(false);
 
     // Stop any existing stream first to avoid NotReadableError on some devices
@@ -94,7 +92,6 @@ function Capture() {
         } catch (e) {
           // Some browsers require a user gesture to play
           setNeedsPlayInteraction(true);
-          setShowStartPrompt(true);
           console.warn(e);
           setLastError(toErr(e));
         }
@@ -167,7 +164,6 @@ function Capture() {
             await markPreviewReadyWhenStable(videoRef.current);
           } catch (e) {
             setNeedsPlayInteraction(true);
-            setShowStartPrompt(true);
             console.warn(e);
             setLastError(toErr(e));
           }
@@ -187,7 +183,6 @@ function Capture() {
         }
         setError(friendly);
         setLastError(toErr(innerErr));
-        setShowStartPrompt(true);
       } finally {
         // no-op
       }
@@ -197,10 +192,7 @@ function Capture() {
   // Now that callbacks are defined, set up the effect
   useEffect(() => {
     startCamera();
-    // After a short delay, surface the Start Camera button (if still needed)
-    const t = setTimeout(() => {
-      setShowStartPrompt(true);
-    }, 1500);
+    const t = setTimeout(() => {}, 0);
     // Video element event listeners for diagnostics
     const v = videoRef.current;
     const addLog = (msg: string) => setDebugLog(prev => [...prev.slice(-100), `${new Date().toLocaleTimeString()} ${msg}`]);
@@ -522,9 +514,7 @@ function Capture() {
           <div style={{ width: '200px', height: '4px', backgroundColor: '#E5E7EB', borderRadius: '2px', overflow: 'hidden' }}>
             <div style={{ height: '100%', backgroundColor: '#000000', borderRadius: '2px', animation: 'progressBar 2s ease-out forwards' }}></div>
           </div>
-          {(showStartPrompt || needsPlayInteraction) && (
-            <button onClick={startCamera} style={{ marginTop: '16px', padding: '10px 14px', backgroundColor: '#000', color: '#fff', border: 'none', borderRadius: '8px', fontFamily: 'Roobert TRIAL, sans-serif', fontWeight: 600, fontSize: '14px', letterSpacing: '-0.02em', textTransform: 'uppercase', cursor: 'pointer' }}>Start Camera</button>
-          )}
+          {/* Autostart only; no Start Camera button */}
         </div>
       )}
       <>
@@ -542,35 +532,7 @@ function Capture() {
             {!capturedImage ? (
               <>
                 <video ref={videoRef} autoPlay muted playsInline className="capture-video" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                {needsPlayInteraction && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        await videoRef.current?.play();
-                        setNeedsPlayInteraction(false);
-                      } catch (e) { console.warn(e); }
-                    }}
-                    style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      padding: '12px 16px',
-                      backgroundColor: '#000',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontFamily: 'Roobert TRIAL, sans-serif',
-                      fontWeight: 600,
-                      fontSize: '14px',
-                      letterSpacing: '-0.02em',
-                      textTransform: 'uppercase',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Tap to start camera
-                  </button>
-                )}
+                {/* Autostart only; remove tap-to-start overlay */}
                 <div className="capture-guidance" style={{
                   position: 'absolute',
                   bottom: '16px',
