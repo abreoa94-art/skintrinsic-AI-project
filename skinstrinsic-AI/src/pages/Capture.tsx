@@ -161,6 +161,7 @@ function Capture() {
           try {
             await videoRef.current.play();
             setNeedsPlayInteraction(false);
+            await markPreviewReadyWhenStable(videoRef.current);
           } catch (e) {
             setNeedsPlayInteraction(true);
             console.warn(e);
