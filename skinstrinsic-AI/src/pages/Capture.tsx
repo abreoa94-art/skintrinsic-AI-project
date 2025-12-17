@@ -19,15 +19,38 @@ function Capture() {
   const [needsPlayInteraction, setNeedsPlayInteraction] = useState(false);
   const [showStartPrompt, setShowStartPrompt] = useState(false);
   const [triedAlternateFacing, setTriedAlternateFacing] = useState(false);
+  const [isPreviewReady, setIsPreviewReady] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [lastError, setLastError] = useState<{name?: string; message?: string}>({});
+  const [debugEnabled] = useState<boolean>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('debug') === '1';
+    } catch {
+      return false;
+    }
+  });
   const navigate = useNavigate();
 
   const toErr = (e: unknown): { name?: string; message?: string } => {
     const err = e as Partial<DOMException> & Partial<Error>;
     return { name: err?.name, message: err?.message };
   };
+
+  const markPreviewReadyWhenStable = useCallback(async (video: HTMLVideoElement, attempts = 3): Promise<void> => {
+    return new Promise((resolve) => {
+      const start = video.currentTime || 0;
+      setTimeout(() => {
+        const advanced = video.currentTime > start + 0.02;
+        if (advanced || attempts <= 1) {
+          setIsPreviewReady(true);
+          resolve();
+        } else {
+          markPreviewReadyWhenStable(video, attempts - 1).then(resolve);
+        }
+      }, 250);
+    });
+  }, []);
 
   
 
@@ -37,6 +60,7 @@ function Capture() {
     setIsCameraLoading(true);
     setNeedsPlayInteraction(false);
     setShowStartPrompt(false);
+    setIsPreviewReady(false);
 
     // Stop any existing stream first to avoid NotReadableError on some devices
     if (streamRef.current) {
@@ -65,6 +89,7 @@ function Capture() {
         try {
           await videoRef.current.play();
           setNeedsPlayInteraction(false);
+          await markPreviewReadyWhenStable(videoRef.current);
         } catch (e) {
           // Some browsers require a user gesture to play
           setNeedsPlayInteraction(true);
@@ -114,6 +139,7 @@ function Capture() {
               videoRef.current.srcObject = stream!;
               videoRef.current.setAttribute('playsinline', 'true');
               await videoRef.current.play();
+              await markPreviewReadyWhenStable(videoRef.current);
             }
             setError(null);
           } catch (e) { 
@@ -160,7 +186,7 @@ function Capture() {
         setIsCameraLoading(false);
       }
     }
-  }, [triedAlternateFacing]);
+  }, [triedAlternateFacing, markPreviewReadyWhenStable]);
 
   // Now that callbacks are defined, set up the effect
   useEffect(() => {
@@ -182,17 +208,17 @@ function Capture() {
       ['waiting', () => addLog('video waiting')],
       ['error', () => addLog('video error')]
     ];
-    if (v) handlers.forEach(([evt, h]) => v.addEventListener(evt, h));
+    if (debugEnabled && v) handlers.forEach(([evt, h]) => v.addEventListener(evt, h));
 
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
       }
-      if (v) handlers.forEach(([evt, h]) => v.removeEventListener(evt, h));
+      if (debugEnabled && v) handlers.forEach(([evt, h]) => v.removeEventListener(evt, h));
       clearTimeout(t);
     };
-  }, [isCameraLoading, startCamera]);
+  }, [isCameraLoading, startCamera, debugEnabled]);
 
   
 
@@ -477,7 +503,7 @@ function Capture() {
         className="capture-header-left"
       />
 
-      {isCameraLoading ? (
+      {!isPreviewReady ? (
         <div className="flex flex-col items-center justify-center" style={{ minHeight: 'calc(100vh - 64px)' }}>
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px', minWidth: '300px' }}>
             <img 
@@ -702,39 +728,43 @@ function Capture() {
             )}
           </div>
 
-          {/* Debug panel */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
-            <button onClick={() => setDebugOpen(v => !v)} style={{ fontFamily: 'Roobert TRIAL, sans-serif', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', padding: '6px 10px', backgroundColor: '#111827', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Toggle Debug</button>
-          </div>
-          {debugOpen && (
-            <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '12px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '12px', color: '#111827', marginBottom: '16px', maxHeight: '220px', overflow: 'auto' }}>
-              <div style={{ marginBottom: '8px' }}>
-                <strong>Video:</strong>{' '}
-                {(() => {
-                  const v = videoRef.current;
-                  if (!v) return 'ref: null';
-                  return `w=${v.videoWidth} h=${v.videoHeight} ready=${v.readyState} time=${v.currentTime.toFixed(2)} paused=${v.paused}`;
-                })()}
+          {/* Debug panel (hidden unless ?debug=1) */}
+          {debugEnabled && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+                <button onClick={() => setDebugOpen(v => !v)} style={{ fontFamily: 'Roobert TRIAL, sans-serif', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', padding: '6px 10px', backgroundColor: '#111827', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Toggle Debug</button>
               </div>
-              <div style={{ marginBottom: '8px' }}>
-                <strong>Track:</strong>{' '}
-                {(() => {
-                  const t = streamRef.current?.getVideoTracks()[0];
-                  if (!t) return 'none';
-                  const s = t.getSettings();
-                  return `ready=${t.readyState} muted=${videoRef.current?.muted ?? false} label="${t.label}" dev=${s.deviceId || ''} facing=${s.facingMode || ''} ${s.width || ''}x${s.height || ''} fps=${s.frameRate || ''}`;
-                })()}
-              </div>
-              {lastError?.name && (
-                <div style={{ marginBottom: '8px', color: '#B91C1C' }}>
-                  <strong>LastError:</strong> {lastError.name}: {lastError.message}
+              {debugOpen && (
+                <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '12px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '12px', color: '#111827', marginBottom: '16px', maxHeight: '220px', overflow: 'auto' }}>
+                  <div style={{ marginBottom: '8px' }}>
+                    <strong>Video:</strong>{' '}
+                    {(() => {
+                      const v = videoRef.current;
+                      if (!v) return 'ref: null';
+                      return `w=${v.videoWidth} h=${v.videoHeight} ready=${v.readyState} time=${v.currentTime.toFixed(2)} paused=${v.paused}`;
+                    })()}
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <strong>Track:</strong>{' '}
+                    {(() => {
+                      const t = streamRef.current?.getVideoTracks()[0];
+                      if (!t) return 'none';
+                      const s = t.getSettings();
+                      return `ready=${t.readyState} muted=${videoRef.current?.muted ?? false} label="${t.label}" dev=${s.deviceId || ''} facing=${s.facingMode || ''} ${s.width || ''}x${s.height || ''} fps=${s.frameRate || ''}`;
+                    })()}
+                  </div>
+                  {lastError?.name && (
+                    <div style={{ marginBottom: '8px', color: '#B91C1C' }}>
+                      <strong>LastError:</strong> {lastError.name}: {lastError.message}
+                    </div>
+                  )}
+                  <div>
+                    <strong>Events:</strong>
+                    <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{debugLog.slice(-12).join('\n')}</pre>
+                  </div>
                 </div>
               )}
-              <div>
-                <strong>Events:</strong>
-                <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{debugLog.slice(-12).join('\n')}</pre>
-              </div>
-            </div>
+            </>
           )}
 
           <canvas ref={canvasRef} style={{ display: 'none' }} />
