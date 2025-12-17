@@ -18,6 +18,7 @@ function Capture() {
   const [error, setError] = useState<string | null>(null);
   const [needsPlayInteraction, setNeedsPlayInteraction] = useState(false);
   const [showStartPrompt, setShowStartPrompt] = useState(false);
+  const [triedAlternateFacing, setTriedAlternateFacing] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -77,6 +78,17 @@ function Capture() {
       }
       setError(null);
       setIsCameraLoading(false);
+      // Verify frames actually advance; if not, try alternate camera
+      setTimeout(async () => {
+        const v = videoRef.current;
+        if (!v) return;
+        const frozen = v.currentTime === 0;
+        if (frozen && !triedAlternateFacing) {
+          try {
+            await switchFacingMode();
+          } catch (e) { console.warn('switchFacingMode failed', e); }
+        }
+      }, 1200);
     } catch (err: unknown) {
       // Fallback with very loose constraints
       console.error(err);
@@ -111,6 +123,36 @@ function Capture() {
       } finally {
         setIsCameraLoading(false);
       }
+    }
+  };
+
+  const switchFacingMode = async () => {
+    // Toggle between user and environment to recover from black preview on some devices
+    const useEnvironment = !triedAlternateFacing;
+    setTriedAlternateFacing(true);
+    try {
+      // Stop current stream
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: useEnvironment ? { exact: 'environment' } : { exact: 'user' },
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        },
+        audio: false
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        try { videoRef.current.setAttribute('playsinline', 'true'); } catch {}
+        await videoRef.current.play();
+      }
+      setError(null);
+    } catch (e) {
+      console.warn('Alternate facing failed', e);
     }
   };
 
