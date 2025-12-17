@@ -114,10 +114,62 @@ function Demographics() {
     navigate('/analysis');
   };
 
+  const handleAccept = () => {
+    const accepted = {
+      race: selectedRace.name,
+      age: selectedAge.range,
+      gender: selectedGender.type,
+    };
+    const apiResponse = location.state?.apiResponse;
+    navigate('/summary', { state: { apiResponse, acceptedDemographics: accepted } });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <style>
         {`
+          /* Tablet-ish layout: tighten and scale for ≤1010px */
+          @media (max-width: 1010px) and (min-width: 769px) {
+            .demographics-title {
+              width: auto !important;
+              left: 20px !important;
+              top: 96px !important;
+              font-size: 56px !important;
+              line-height: 56px !important;
+            }
+            .demographics-subtitle {
+              left: 20px !important;
+              top: 150px !important;
+              font-size: 12px !important;
+            }
+            .demographics-content {
+              top: 210px !important;
+              left: 20px !important;
+              right: 20px !important;
+              gap: 20px !important;
+            }
+            .demographics-left-column { width: 140px !important; }
+            .demographics-left-box { min-height: 100px !important; padding: 12px !important; }
+            .demographics-center {
+              padding: 24px !important;
+              min-height: 360px !important;
+              min-width: 0 !important;
+            }
+            .demographics-center-title {
+              top: 24px !important;
+              left: 24px !important;
+              font-size: 36px !important;
+              line-height: 36px !important;
+            }
+            .demographics-circle { width: 240px !important; height: 240px !important; right: 24px !important; bottom: 24px !important; }
+            .demographics-circle svg { width: 240px !important; height: 240px !important; }
+            .demographics-instruction { bottom: 12px !important; font-size: 11px !important; }
+            .demographics-right-column { width: 260px !important; padding: 16px !important; box-sizing: border-box !important; }
+            .demographics-back-button { left: 20px !important; bottom: calc(20px + env(safe-area-inset-bottom)) !important; }
+            .demographics-home-button { right: 20px !important; bottom: calc(20px + env(safe-area-inset-bottom)) !important; }
+            .demographics-right-column button { width: 100% !important; }
+          }
+
           @media (max-width: 768px) {
             .demographics-header-left {
               left: 16px !important;
@@ -139,11 +191,17 @@ function Demographics() {
               font-size: 36px !important;
               top: 80px !important;
               left: 16px !important;
+              right: 16px !important;
+              width: auto !important;
+              max-width: calc(100% - 32px) !important;
             }
             .demographics-subtitle {
               font-size: 12px !important;
               top: 125px !important;
               left: 16px !important;
+              right: 16px !important;
+              width: auto !important;
+              max-width: calc(100% - 32px) !important;
             }
             .demographics-content {
               flex-direction: column !important;
@@ -151,6 +209,7 @@ function Demographics() {
               left: 16px !important;
               right: 16px !important;
               gap: 16px !important;
+              box-sizing: border-box !important;
             }
             .demographics-left-column {
               width: 100% !important;
@@ -165,6 +224,7 @@ function Demographics() {
               width: 100% !important;
               min-height: 300px !important;
               padding: 20px !important;
+              box-sizing: border-box !important;
             }
             .demographics-center-title {
               font-size: 28px !important;
@@ -189,10 +249,11 @@ function Demographics() {
             .demographics-right-column {
               width: 100% !important;
               padding: 16px !important;
+              box-sizing: border-box !important;
             }
             .demographics-back-button,
             .demographics-home-button {
-              bottom: 16px !important;
+              bottom: calc(16px + env(safe-area-inset-bottom)) !important;
             }
             .demographics-back-button {
               left: 16px !important;
@@ -210,6 +271,31 @@ function Demographics() {
               font-size: 12px !important;
             }
           }
+
+          /* Static footer at the bottom of page content */
+          .demographics-footer {
+            position: relative;
+            bottom: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px 12px;
+            padding-inline-end: calc(64px + env(safe-area-inset-right));
+            padding-inline-start: calc(16px + env(safe-area-inset-left));
+            margin-top: 24px;
+            background: #fff;
+            border-top: 1px solid #E5E7EB;
+          }
+          @media (max-width: 1010px) {
+            .demographics-footer { 
+              padding: 10px 12px; 
+              padding-inline-end: calc(48px + env(safe-area-inset-right));
+              padding-inline-start: calc(12px + env(safe-area-inset-left));
+            }
+          }
+          .demographics-footer .footer-right { margin-right: 24px; }
+          @media (max-width: 1010px) { .demographics-footer .footer-right { margin-right: 16px; } }
         `}
       </style>
       {/* Header - Nav Bar */}
@@ -754,26 +840,50 @@ function Demographics() {
               ))}
             </div>
             )}
+            {/* Accept Selection Button */}
+            <button
+              onClick={handleAccept}
+              style={{
+                marginTop: '20px',
+                padding: '12px 16px',
+                backgroundColor: '#1A1B1C',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '8px',
+                fontFamily: 'Roobert TRIAL, sans-serif',
+                fontWeight: 600,
+                fontSize: '14px',
+                letterSpacing: '-0.01em',
+                textTransform: 'uppercase',
+                cursor: 'pointer'
+              }}
+            >
+              Accept Selection
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Navigation Buttons */}
-      <NavigationButton 
-        onClick={handleBack}
-        direction="left"
-        label="BACK"
-        icon={arrowLeft}
-        className="demographics-back-button"
-      />
-
-      <NavigationButton 
-        onClick={() => navigate('/')}
-        direction="right"
-        label="HOME"
-        icon={arrowRight}
-        className="demographics-home-button"
-      />
+      {/* Footer actions (non-fixed) */}
+      <div className="demographics-footer">
+        <NavigationButton 
+          onClick={handleBack}
+          direction="left"
+          label="BACK"
+          icon={arrowLeft}
+          isFixed={false}
+        />
+        <div className="footer-right">
+          <NavigationButton 
+            onClick={() => navigate('/')}
+            direction="right"
+            label="HOME"
+            icon={arrowRight}
+            mirrorRightIcon={false}
+            isFixed={false}
+          />
+        </div>
+      </div>
     </div>
   );
 }

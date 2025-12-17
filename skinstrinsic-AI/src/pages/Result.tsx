@@ -35,75 +35,7 @@ function Result() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <style>
-        {`
-          @keyframes rotateSlow {
-            from { transform: translate(-50%, -50%) rotate(0deg); }
-            to { transform: translate(-50%, -50%) rotate(360deg); }
-          }
-          @keyframes rotateMedium {
-            from { transform: translate(-50%, -50%) rotate(0deg); }
-            to { transform: translate(-50%, -50%) rotate(360deg); }
-          }
-          @keyframes rotateFast {
-            from { transform: translate(-50%, -50%) rotate(0deg); }
-            to { transform: translate(-50%, -50%) rotate(360deg); }
-          }
-          
-          @media (max-width: 768px) {
-            .result-header-left {
-              left: 16px !important;
-              top: 20px !important;
-              font-size: 12px !important;
-            }
-            .result-subtitle {
-              left: 16px !important;
-              top: 48px !important;
-              font-size: 14px !important;
-            }
-            .result-header-button {
-              right: 16px !important;
-              top: 20px !important;
-              font-size: 9px !important;
-              height: 28px !important;
-              padding: 0 12px !important;
-            }
-            .result-main {
-              flex-direction: column !important;
-              gap: 32px !important;
-              padding: 0 16px !important;
-            }
-            .result-icon-container {
-              width: 200px !important;
-              height: 200px !important;
-            }
-            .result-rectangle-big {
-              width: 250px !important;
-            }
-            .result-rectangle-medium {
-              width: 200px !important;
-            }
-            .result-rectangle-small {
-              width: 150px !important;
-            }
-            .result-icon {
-              width: 48px !important;
-              height: 48px !important;
-            }
-            .result-label {
-              font-size: 12px !important;
-            }
-            .result-back-button {
-              bottom: 16px !important;
-              left: 16px !important;
-            }
-            .result-arrow {
-              width: 36px !important;
-              height: 36px !important;
-            }
-          }
-        `}
-      </style>
+      
       
       <Header 
         pageTitle="intro" 
@@ -112,7 +44,7 @@ function Result() {
       />
 
       {/* Main Content */}
-      <div className="result-main flex items-center justify-center" style={{ minHeight: 'calc(100vh - 64px)', padding: '0 32px', gap: '450px' }}>
+      <div className="result-main flex items-center justify-center">
         {/* Camera Icon - Capture */}
         <div
           onClick={handleCameraClick}
@@ -123,7 +55,7 @@ function Result() {
             display: 'inline-block'
           }}
         >
-          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '600px', minWidth: '600px' }}>
+          <div className="result-icon-container" style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '600px', height: '600px' }}>
             <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
               <img 
                 src={rectangleBig} 
@@ -132,12 +64,14 @@ function Result() {
                   position: 'absolute',
                   top: '50%',
                   left: '50%',
+                  transform: 'translate(-50%, -50%)',
                   zIndex: 1,
                   width: '550px',
                   height: 'auto',
                   filter: 'drop-shadow(0 0 8px rgba(0, 0, 0, 0.3))',
                   animation: 'rotateFast 20s linear infinite'
                 }}
+                className="result-rectangle result-rectangle-big"
               />
               <img 
                 src={rectangleMedium} 
@@ -146,12 +80,14 @@ function Result() {
                   position: 'absolute',
                   top: '50%',
                   left: '50%',
+                  transform: 'translate(-50%, -50%)',
                   zIndex: 2,
                   width: '450px',
                   height: 'auto',
                   filter: 'drop-shadow(0 0 6px rgba(0, 0, 0, 0.4))',
                   animation: 'rotateMedium 30s linear infinite'
                 }}
+                className="result-rectangle result-rectangle-medium"
               />
               <img 
                 src={rectangleSmall} 
@@ -160,13 +96,17 @@ function Result() {
                   position: 'absolute',
                   top: '50%',
                   left: '50%',
+                  transform: 'translate(-50%, -50%)',
                   zIndex: 3,
                   width: '350px',
                   height: 'auto',
                   filter: 'drop-shadow(0 0 4px rgba(0, 0, 0, 0.5))',
                   animation: 'rotateSlow 40s linear infinite'
                 }}
+                className="result-rectangle result-rectangle-small"
               />
+            </div>
+            <div className="result-callout result-callout-camera" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 4 }}>
               <img 
                 src={cameraIcon}
                 alt="Camera"
@@ -174,63 +114,68 @@ function Result() {
                 style={{
                   width: '120px',
                   height: '120px',
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
                   transition: 'transform 0.3s ease',
-                  position: 'relative',
                   zIndex: 4
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.1)';
+                  e.currentTarget.style.transform = 'translate(-50%, -50%) scale(1.1)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.transform = 'translate(-50%, -50%) scale(1)';
                 }}
               />
+              <img 
+                src={vector1}
+                alt="Line"
+                className="result-vector result-vector-camera"
+                style={{
+                  position: 'absolute',
+                  top: '33%',
+                  left: '53.5%',
+                  width: '72px',
+                  height: 'auto',
+                  transform: 'rotate(-15deg)',
+                  transformOrigin: 'left center',
+                  zIndex: 5
+                }}
+              />
+              <img 
+                src={ellipse}
+                alt="Dot at end of vector"
+                className="result-ellipse result-ellipse-camera"
+                style={{
+                  position: 'absolute',
+                  top: '29.5%',
+                  left: '63.5%',
+                  width: '5px',
+                  height: '5px',
+                  zIndex: 5
+                }}
+              />
+              <p
+                className="result-label result-label-camera"
+                style={{
+                  position: 'absolute',
+                  top: '26%',
+                  left: '66%',
+                  fontFamily: 'Roobert TRIAL, sans-serif',
+                  fontWeight: 600,
+                  fontSize: '12px',
+                  lineHeight: '22px',
+                  letterSpacing: '-0.02em',
+                  color: '#1A1B1C',
+                  textTransform: 'uppercase',
+                  textAlign: 'left',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Allow A.I.<br />To Scan Your Face
+              </p>
             </div>
-            <img 
-              src={vector1}
-              alt="Line"
-              style={{
-                position: 'absolute',
-                top: '33%',
-                left: '53.5%',
-                width: '72px',
-                height: 'auto',
-                transform: 'rotate(-15deg)',
-                transformOrigin: 'left center',
-                zIndex: 5
-              }}
-            />
-            <img 
-              src={ellipse}
-              alt="Dot at end of vector"
-              style={{
-                position: 'absolute',
-                top: '29.5%',
-                left: '63.5%',
-                width: '5px',
-                height: '5px',
-                zIndex: 5
-              }}
-            />
-            <p
-              className="result-label"
-              style={{
-                position: 'absolute',
-                top: '26%',
-                left: '66%',
-                fontFamily: 'Roobert TRIAL, sans-serif',
-                fontWeight: 600,
-                fontSize: '12px',
-                lineHeight: '22px',
-                letterSpacing: '-0.02em',
-                color: '#1A1B1C',
-                textTransform: 'uppercase',
-                textAlign: 'left',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              Allow A.I.<br />To Scan Your Face
-            </p>
           </div>
         </div>
 
@@ -244,7 +189,7 @@ function Result() {
             display: 'inline-block'
           }}
         >
-          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '600px', minWidth: '600px' }}>
+          <div className="result-icon-container" style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '600px', height: '600px' }}>
             <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
               <img 
                 src={rectangleBig} 
@@ -253,12 +198,14 @@ function Result() {
                   position: 'absolute',
                   top: '50%',
                   left: '50%',
+                  transform: 'translate(-50%, -50%)',
                   zIndex: 1,
                   width: '550px',
                   height: 'auto',
                   filter: 'drop-shadow(0 0 8px rgba(0, 0, 0, 0.3))',
                   animation: 'rotateFast 20s linear infinite'
                 }}
+                className="result-rectangle result-rectangle-big"
               />
               <img 
                 src={rectangleMedium} 
@@ -267,12 +214,14 @@ function Result() {
                   position: 'absolute',
                   top: '50%',
                   left: '50%',
+                  transform: 'translate(-50%, -50%)',
                   zIndex: 2,
                   width: '450px',
                   height: 'auto',
                   filter: 'drop-shadow(0 0 6px rgba(0, 0, 0, 0.4))',
                   animation: 'rotateMedium 30s linear infinite'
                 }}
+                className="result-rectangle result-rectangle-medium"
               />
               <img 
                 src={rectangleSmall} 
@@ -281,13 +230,17 @@ function Result() {
                   position: 'absolute',
                   top: '50%',
                   left: '50%',
+                  transform: 'translate(-50%, -50%)',
                   zIndex: 3,
                   width: '350px',
                   height: 'auto',
                   filter: 'drop-shadow(0 0 4px rgba(0, 0, 0, 0.5))',
                   animation: 'rotateSlow 40s linear infinite'
                 }}
+                className="result-rectangle result-rectangle-small"
               />
+            </div>
+            <div className="result-callout result-callout-gallery" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 4 }}>
               <img 
                 src={galleryIcon}
                 alt="Gallery"
@@ -295,62 +248,68 @@ function Result() {
                 style={{
                   width: '120px',
                   height: '120px',
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
                   transition: 'transform 0.3s ease',
-                  position: 'relative',
                   zIndex: 4
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.1)';
+                  e.currentTarget.style.transform = 'translate(-50%, -50%) scale(1.1)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.transform = 'translate(-50%, -50%) scale(1)';
                 }}
               />
+              <img 
+                src={vector1}
+                alt="Line"
+                className="result-vector result-vector-gallery"
+                style={{
+                  position: 'absolute',
+                  top: '57%',
+                  left: '46%',
+                  width: '72px',
+                  height: 'auto',
+                  transform: 'rotate(165deg)',
+                  transformOrigin: 'left center',
+                  zIndex: 5
+                }}
+              />
+              <img 
+                src={ellipse}
+                alt="Dot at end of vector"
+                className="result-ellipse result-ellipse-gallery"
+                style={{
+                  position: 'absolute',
+                  top: '70.5%',
+                  left: '35.2%',
+                  width: '5px',
+                  height: '5px',
+                  zIndex: 5
+                }}
+              />
+              <p
+                className="result-label result-label-gallery"
+                style={{
+                  position: 'absolute',
+                  top: '67.5%',
+                  left: '14.5%',
+                  fontFamily: 'Roobert TRIAL, sans-serif',
+                  fontWeight: 600,
+                  fontSize: '12px',
+                  lineHeight: '22px',
+                  letterSpacing: '-0.02em',
+                  color: '#1A1B1C',
+                  textTransform: 'uppercase',
+                  textAlign: 'right',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Allow A.I.<br />Access Gallery
+              </p>
             </div>
-            <img 
-              src={vector1}
-              alt="Line"
-              style={{
-                position: 'absolute',
-                top: '57%',
-                left: '46%',
-                width: '72px',
-                height: 'auto',
-                transform: 'rotate(165deg)',
-                transformOrigin: 'left center',
-                zIndex: 5
-              }}
-            />
-            <img 
-              src={ellipse}
-              alt="Dot at end of vector"
-              style={{
-                position: 'absolute',
-                top: '70.5%',
-                left: '35.2%',
-                width: '5px',
-                height: '5px',
-                zIndex: 5
-              }}
-            />
-            <p
-              style={{
-                position: 'absolute',
-                top: '67.5%',
-                left: '14.5%',
-                fontFamily: 'Roobert TRIAL, sans-serif',
-                fontWeight: 600,
-                fontSize: '12px',
-                lineHeight: '22px',
-                letterSpacing: '-0.02em',
-                color: '#1A1B1C',
-                textTransform: 'uppercase',
-                textAlign: 'right',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              Allow A.I.<br />Access Gallery
-            </p>
           </div>
         </Link>
       </div>
@@ -485,3 +444,4 @@ function Result() {
 }
 
 export default Result;
+ 

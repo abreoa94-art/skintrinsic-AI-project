@@ -5,6 +5,8 @@ interface NavigationButtonProps {
   icon: string;
   className?: string;
   position?: { bottom?: string; left?: string; right?: string };
+  mirrorRightIcon?: boolean; // when direction is right, mirror a left-arrow asset
+  isFixed?: boolean; // render as fixed overlay (default) or inline inside a container
 }
 
 const arrowHoverStyles = {
@@ -18,10 +20,10 @@ const arrowHoverStyles = {
   },
   right: {
     enter: (e: React.MouseEvent<HTMLImageElement>) => {
-      e.currentTarget.style.transform = 'translateX(5px)';
+      e.currentTarget.style.transform = 'scaleX(-1) translateX(3px)';
     },
     leave: (e: React.MouseEvent<HTMLImageElement>) => {
-      e.currentTarget.style.transform = 'translateX(0)';
+      e.currentTarget.style.transform = 'scaleX(-1) translateX(0)';
     }
   }
 };
@@ -32,7 +34,9 @@ function NavigationButton({
   label, 
   icon, 
   className = '',
-  position = { bottom: '32px' }
+  position = { bottom: '32px' },
+  mirrorRightIcon = true,
+  isFixed = true
 }: NavigationButtonProps) {
   const positionStyle = {
     bottom: position.bottom,
@@ -45,13 +49,14 @@ function NavigationButton({
       onClick={onClick}
       className={className}
       style={{
-        position: 'fixed',
-        ...positionStyle,
+        position: isFixed ? 'fixed' : 'relative',
+        ...(isFixed ? positionStyle : {}),
         background: 'transparent',
         border: 'none',
         cursor: 'pointer',
         padding: 0,
-        zIndex: 10,
+        zIndex: isFixed ? 9999 : undefined,
+        pointerEvents: 'auto',
         display: 'flex',
         alignItems: 'center',
         gap: '12px'
@@ -100,10 +105,24 @@ function NavigationButton({
             style={{
               width: '44px',
               height: '44px',
-              transition: 'transform 0.3s ease'
+              transition: 'transform 0.3s ease',
+              transform: mirrorRightIcon ? 'scaleX(-1)' : 'none'
             }}
-            onMouseEnter={arrowHoverStyles.right.enter}
-            onMouseLeave={arrowHoverStyles.right.leave}
+            onMouseEnter={(e) => {
+              if (mirrorRightIcon) {
+                arrowHoverStyles.right.enter(e);
+              } else {
+                // nudge right without flipping
+                (e.currentTarget as HTMLImageElement).style.transform = 'translateX(3px)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (mirrorRightIcon) {
+                arrowHoverStyles.right.leave(e);
+              } else {
+                (e.currentTarget as HTMLImageElement).style.transform = 'translateX(0)';
+              }
+            }}
           />
         </>
       )}

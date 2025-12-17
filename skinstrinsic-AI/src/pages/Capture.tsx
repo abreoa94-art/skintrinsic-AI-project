@@ -10,67 +10,172 @@ import Header from '../components/Header';
 function Capture() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCameraLoading, setIsCameraLoading] = useState(true);
   const [showAnalyzing, setShowAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsPlayInteraction, setNeedsPlayInteraction] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     startCamera();
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  
 
   const startCamera = async () => {
     setIsCameraLoading(true);
+    setNeedsPlayInteraction(false);
+
+    // Stop any existing stream first to avoid NotReadableError on some devices
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      } catch (e) { console.warn(e); }
+      streamRef.current = null;
+    }
+
+    const baseConstraints: MediaStreamConstraints = {
+      video: {
+        facingMode: { ideal: 'user' as const },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    };
+
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user', width: 1280, height: 720 } 
-      });
-      setStream(mediaStream);
-      
-      // Add minimum display time for loading screen
-      setTimeout(() => {
+      const mediaStream = await navigator.mediaDevices.getUserMedia(baseConstraints);
+      streamRef.current = mediaStream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        try {
+          await videoRef.current.play();
+          setNeedsPlayInteraction(false);
+        } catch (e) {
+          // Some browsers require a user gesture to play
+          setNeedsPlayInteraction(true);
+          console.warn(e);
+        }
+      }
+      setError(null);
+      setIsCameraLoading(false);
+    } catch (err: unknown) {
+      // Fallback with very loose constraints
+      console.error(err);
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        streamRef.current = fallbackStream;
         if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
+          videoRef.current.srcObject = fallbackStream;
+          try {
+            await videoRef.current.play();
+            setNeedsPlayInteraction(false);
+          } catch (e) {
+            setNeedsPlayInteraction(true);
+            console.warn(e);
+          }
         }
         setError(null);
+      } catch (innerErr: unknown) {
+        const name = (innerErr as DOMException)?.name || '';
+        let friendly = 'Unable to access camera. Please check permissions and try again.';
+        if (name === 'NotAllowedError' || name === 'SecurityError') {
+          friendly = 'Camera permission was denied. Enable permissions in your browser settings.';
+        } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+          friendly = 'No camera device found. Please connect a camera and try again.';
+        } else if (name === 'NotReadableError') {
+          friendly = 'Camera is in use by another app. Close other apps and retry.';
+        } else if (name === 'OverconstrainedError') {
+          friendly = 'Requested resolution not supported. Try again with default settings.';
+        }
+        setError(friendly);
+      } finally {
         setIsCameraLoading(false);
-      }, 2000);
-    } catch (err) {
-      setError('Unable to access camera. Please ensure camera permissions are granted.');
-      console.error('Camera error:', err);
-      setTimeout(() => {
-        setIsCameraLoading(false);
-      }, 1000);
+      }
     }
   };
 
   const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0);
-        const imageData = canvas.toDataURL('image/jpeg', 0.9);
-        setCapturedImage(imageData);
-      }
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    // Ensure the camera is actually ready with correct dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setError('Camera not ready yet. Please wait a moment.');
+      return;
+    }
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(video, 0, 0);
+      const imageData = canvas.toDataURL('image/jpeg', 0.9);
+      setCapturedImage(imageData);
+      setError(null);
     }
   };
 
   const retakePhoto = () => {
     setCapturedImage(null);
     setError(null);
+  };
+
+  const waitForMetadata = (video: HTMLVideoElement, timeoutMs = 800): Promise<void> => {
+    return new Promise((resolve) => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        resolve();
+        return;
+      }
+      let settled = false;
+      const onReady = () => {
+        if (settled) return;
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          settled = true;
+          cleanup();
+          resolve();
+        }
+      };
+      const cleanup = () => {
+        video.removeEventListener('loadedmetadata', onReady);
+        video.removeEventListener('canplay', onReady);
+      };
+      video.addEventListener('loadedmetadata', onReady);
+      video.addEventListener('canplay', onReady);
+      setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          cleanup();
+          resolve();
+        }
+      }, timeoutMs);
+    });
+  };
+
+  const handleCaptureClick = async () => {
+    const video = videoRef.current;
+    if (!video) return;
+    try {
+      if (needsPlayInteraction) {
+        try {
+          await video.play();
+          setNeedsPlayInteraction(false);
+        } catch (e) { console.warn(e); }
+      }
+      await waitForMetadata(video);
+      capturePhoto();
+    } catch {
+      setError('Camera not ready yet. Please try again.');
+    }
   };
 
   const submitPhoto = async () => {
@@ -117,16 +222,25 @@ function Capture() {
   };
 
   const handleBack = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
     navigate('/result');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+    <div className="capture-root min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <style>
         {`
+          /* Defaults for shutter/text visibility */
+          .capture-button-shutter { display: none; }
+          .capture-button-text { display: inline; }
+
+          /* Prevent sideways scroll */
+          html, body { overflow-x: hidden; }
+          .capture-root { overflow-x: hidden; }
+
           @keyframes rotateSlow {
             from { transform: translate(-50%, -50%) rotate(0deg); }
             to { transform: translate(-50%, -50%) rotate(360deg); }
@@ -147,8 +261,22 @@ function Capture() {
             from { width: 0%; }
             to { width: 100%; }
           }
+          @keyframes fadeInUp {
+            from { opacity: 0; transform: translate(-50%, -10px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+          }
           
           @media (max-width: 768px) {
+            .capture-heading {
+              font-size: 20px !important;
+              margin-top: 24px !important;
+              margin-bottom: 16px !important;
+            }
+            .capture-root { 
+              /* tunable areas for header/controls */
+              --headerArea: 64px; 
+              --controlsArea: 120px; 
+            }
             .capture-header-left {
               left: 16px !important;
               top: 20px !important;
@@ -164,22 +292,82 @@ function Capture() {
             .capture-main {
               padding: 0 16px !important;
             }
+            .capture-card {
+              width: 100% !important;
+              max-width: none !important;
+              background: transparent !important;
+              box-shadow: none !important;
+              padding: 0 !important;
+              border-radius: 0 !important;
+            }
             .capture-video-container {
-              width: 90% !important;
-              max-width: 400px !important;
-              height: auto !important;
+              position: relative !important;
+              width: 100% !important;
+              max-width: none !important;
+              height: calc(100dvh - var(--headerArea) - var(--controlsArea)) !important;
+              aspect-ratio: auto !important;
+              margin: 0 !important;
+              border-radius: 0 !important;
             }
             .capture-video {
+              width: 100% !important;
+              height: 100% !important;
+              object-fit: cover !important;
+              border-radius: 0 !important;
+            }
+            .capture-guidance {
+              bottom: calc(var(--controlsArea) + 24px) !important;
+            }
+            .capture-badge {
+              font-size: 16px !important;
+              padding: 8px 12px !important;
+            }
+            .capture-preview-label { 
+              display: none !important; 
+            }
+            .capture-controls {
+              position: fixed !important;
+              left: 12px !important;
+              right: 12px !important;
+              bottom: calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
+              display: flex !important;
+              justify-content: center !important;
+              gap: 12px !important;
+              padding: 12px 16px !important;
+              box-sizing: border-box !important;
+              background: rgba(255,255,255,0.92) !important;
+              -webkit-backdrop-filter: blur(8px) !important;
+              backdrop-filter: blur(8px) !important;
+              border-top: 1px solid #e5e7eb !important;
               border-radius: 12px !important;
+              z-index: 20 !important;
             }
-            .capture-button {
-              width: 60px !important;
-              height: 60px !important;
-              margin-top: 20px !important;
+            .capture-button { 
+              width: 84px !important; 
+              height: 84px !important; 
+              margin-top: 0 !important; 
+              border-radius: 9999px !important; 
+              background: transparent !important; 
+              border: none !important;
+              padding: 0 !important;
             }
+            .capture-button-shutter { 
+              display: block; 
+              width: 72px; 
+              height: 72px; 
+              border-radius: 9999px; 
+              background: #FFFFFF; 
+              border: 4px solid #000000; 
+              box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+            }
+            .capture-button-text { display: none !important; }
+            .capture-controls button { padding: 12px 20px !important; }
             .capture-back-button {
               bottom: 16px !important;
               left: 16px !important;
+            }
+            .capture-back-text {
+              display: none !important;
             }
             .capture-submit-button {
               bottom: 16px !important;
@@ -287,22 +475,9 @@ function Capture() {
         </div>
       ) : (
         <>
-          <div className="flex flex-col items-center justify-center" style={{ minHeight: 'calc(100vh - 64px)', padding: '40px 32px' }}>
-        <div style={{ width: '100%', maxWidth: '800px', backgroundColor: '#FFFFFF', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)', padding: '32px' }}>
-          {capturedImage && (
-            <h2 style={{
-              fontFamily: 'Roobert TRIAL, sans-serif',
-              fontWeight: 700,
-              fontSize: '32px',
-              letterSpacing: '-0.02em',
-              color: '#1A1B1C',
-              textAlign: 'center',
-              marginBottom: '24px',
-              textTransform: 'uppercase'
-            }}>
-              Great Shot!
-            </h2>
-          )}
+          <div className="capture-main flex flex-col items-center justify-center" style={{ minHeight: 'calc(100vh - 64px)', padding: '40px 32px' }}>
+        <div className="capture-card" style={{ width: '100%', maxWidth: '800px', backgroundColor: '#FFFFFF', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)', padding: '32px' }}>
+          {/* Title moved into camera container as overlay badge */}
 
           {error && (
             <div style={{ backgroundColor: '#FEE2E2', border: '1px solid #EF4444', borderRadius: '8px', padding: '16px', marginBottom: '24px', fontFamily: 'Roobert TRIAL, sans-serif', fontSize: '14px', color: '#991B1B' }}>
@@ -310,11 +485,40 @@ function Capture() {
             </div>
           )}
 
-          <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', backgroundColor: '#000000', borderRadius: '12px', overflow: 'hidden', marginBottom: '24px' }}>
+          <div className="capture-video-container" style={{ position: 'relative', width: '100%', aspectRatio: '16/9', backgroundColor: '#000000', borderRadius: '12px', overflow: 'hidden', marginBottom: '24px' }}>
             {!capturedImage ? (
               <>
-                <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <div style={{
+                <video ref={videoRef} autoPlay muted playsInline className="capture-video" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                {needsPlayInteraction && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await videoRef.current?.play();
+                        setNeedsPlayInteraction(false);
+                      } catch (e) { console.warn(e); }
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      padding: '12px 16px',
+                      backgroundColor: '#000',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontFamily: 'Roobert TRIAL, sans-serif',
+                      fontWeight: 600,
+                      fontSize: '14px',
+                      letterSpacing: '-0.02em',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Tap to start camera
+                  </button>
+                )}
+                <div className="capture-guidance" style={{
                   position: 'absolute',
                   bottom: '16px',
                   left: '50%',
@@ -358,14 +562,38 @@ function Capture() {
                 </div>
               </>
             ) : (
-              <img src={capturedImage || ''} alt="Captured" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <>
+                <img src={capturedImage || ''} alt="Captured" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div 
+                  className="capture-badge"
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 5,
+                    fontFamily: 'Roobert TRIAL, sans-serif',
+                    fontWeight: 700,
+                    letterSpacing: '-0.02em',
+                    color: '#FFFFFF',
+                    textTransform: 'uppercase',
+                    padding: '10px 14px',
+                    borderRadius: '9999px',
+                    background: 'rgba(0,0,0,0.35)',
+                    backdropFilter: 'blur(2px)',
+                    animation: 'fadeInUp 300ms ease-out'
+                  }}
+                >
+                  Great Shot!
+                </div>
+              </>
             )}
           </div>
 
           <canvas ref={canvasRef} style={{ display: 'none' }} />
 
           {capturedImage && (
-            <div style={{
+            <div className="capture-preview-label" style={{
               display: 'flex',
               justifyContent: 'center',
               marginBottom: '24px'
@@ -383,10 +611,28 @@ function Capture() {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+          <div className="capture-controls" style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
             {!capturedImage ? (
-              <button onClick={capturePhoto} disabled={!!error} style={{ fontFamily: 'Roobert TRIAL, sans-serif', fontWeight: 600, fontSize: '14px', textTransform: 'uppercase', padding: '16px 48px', backgroundColor: error ? '#9CA3AF' : '#000000', color: '#FFFFFF', border: 'none', borderRadius: '8px', cursor: error ? 'not-allowed' : 'pointer' }}>
-                Capture Photo
+              <button 
+                className="capture-button" 
+                onClick={handleCaptureClick} 
+                disabled={false}
+                aria-label="Capture photo"
+                style={{ 
+                  fontFamily: 'Roobert TRIAL, sans-serif', 
+                  fontWeight: 600, 
+                  fontSize: '14px', 
+                  textTransform: 'uppercase', 
+                  padding: '16px 48px', 
+                  backgroundColor: '#000000', 
+                  color: '#FFFFFF', 
+                  border: 'none', 
+                  borderRadius: '8px', 
+                  cursor: 'pointer' 
+                }}
+              >
+                <span className="capture-button-shutter" />
+                <span className="capture-button-text">Capture Photo</span>
               </button>
             ) : (
               <>
@@ -404,7 +650,7 @@ function Capture() {
         </>
       )}
 
-      <button onClick={handleBack} style={{ position: 'fixed', bottom: '32px', left: '32px', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <button className="capture-back-button" onClick={handleBack} style={{ position: 'fixed', bottom: '32px', left: '32px', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: '12px' }}>
         <img 
           src={arrowLeft} 
           alt="Back" 
@@ -416,7 +662,7 @@ function Capture() {
             e.currentTarget.style.transform = 'translateX(0)';
           }}
         />
-        <span style={{ fontFamily: 'Roobert TRIAL, sans-serif', fontWeight: 600, fontSize: '14px', letterSpacing: '-0.02em', color: '#1A1B1C', textTransform: 'uppercase' }}>BACK</span>
+        <span className="capture-back-text" style={{ fontFamily: 'Roobert TRIAL, sans-serif', fontWeight: 600, fontSize: '14px', letterSpacing: '-0.02em', color: '#1A1B1C', textTransform: 'uppercase' }}>BACK</span>
       </button>
 
       {showAnalyzing && (

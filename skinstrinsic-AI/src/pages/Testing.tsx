@@ -140,17 +140,27 @@ function Testing() {
               padding: 0 16px !important;
             }
             .testing-rectangles-container {
-              min-height: 400px !important;
-              min-width: 100% !important;
+              min-height: 500px !important;
+              width: 100% !important;
+              position: relative !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
             }
             .testing-rectangle-big {
-              width: 300px !important;
+              width: 280px !important;
+              max-width: 95vw !important;
             }
             .testing-rectangle-medium {
-              width: 240px !important;
+              width: 220px !important;
+              max-width: 85vw !important;
             }
             .testing-rectangle-small {
-              width: 180px !important;
+              width: 160px !important;
+              max-width: 75vw !important;
+            }
+            .testing-input {
+              z-index: 10 !important;
             }
             .testing-placeholder-text {
               font-size: 10px !important;
@@ -159,9 +169,19 @@ function Testing() {
               font-size: 24px !important;
               line-height: 32px !important;
               width: 90% !important;
+              color: #000000 !important;
+              -webkit-text-fill-color: #000000 !important;
+              font-weight: 500 !important;
+              text-shadow: 0 0 1px rgba(0,0,0,0.1) !important;
+            }
+            .testing-input::placeholder {
+              color: #666666 !important;
+              opacity: 1 !important;
+              -webkit-text-fill-color: #666666 !important;
             }
             .testing-placeholder {
-              font-size: 10px !important;
+              font-size: 12px !important;
+              color: #666666 !important;
             }
             .testing-error {
               font-size: 12px !important;
@@ -257,10 +277,13 @@ function Testing() {
                   fontSize: '12px',
                   lineHeight: '16px',
                   letterSpacing: '-0.01em',
-                  color: '#999999',
+                  color: '#666666',
                   textTransform: 'uppercase',
                   margin: 0,
-                  zIndex: 4
+                  zIndex: 4,
+                  opacity: name ? 0 : 1,
+                  pointerEvents: 'none',
+                  transition: 'opacity 0.2s'
                 }}
               >
                 click to type
@@ -279,11 +302,11 @@ function Testing() {
                   left: '50%',
                   transform: 'translate(-50%, -50%)',
                   fontFamily: 'Roobert TRIAL, sans-serif',
-                  fontWeight: 300,
+                  fontWeight: 500,
                   fontSize: '32px',
                   lineHeight: '40px',
                   letterSpacing: '-0.03em',
-                  color: '#1A1B1C',
+                  color: '#000000',
                   textAlign: 'center',
                   border: 'none',
                   borderBottom: '1px solid #000000',
@@ -291,7 +314,9 @@ function Testing() {
                   background: 'transparent',
                   width: '300px',
                   padding: '10px',
-                  zIndex: 4
+                  zIndex: 4,
+                  WebkitTextFillColor: '#000000',
+                  opacity: 1
                 }}
               />
             </div>
@@ -375,7 +400,7 @@ function Testing() {
                   fontSize: '12px',
                   lineHeight: '16px',
                   letterSpacing: '-0.01em',
-                  color: '#999999',
+                  color: '#666666',
                   textTransform: 'uppercase',
                   margin: 0,
                   zIndex: 4,
@@ -400,11 +425,11 @@ function Testing() {
                   left: '50%',
                   transform: 'translate(-50%, -50%)',
                   fontFamily: 'Roobert TRIAL, sans-serif',
-                  fontWeight: 300,
+                  fontWeight: 500,
                   fontSize: '32px',
                   lineHeight: '40px',
                   letterSpacing: '-0.03em',
-                  color: '#1A1B1C',
+                  color: '#000000',
                   textAlign: 'center',
                   border: 'none',
                   borderBottom: '1px solid #000000',
@@ -413,6 +438,7 @@ function Testing() {
                   width: '300px',
                   padding: '10px',
                   zIndex: 4,
+                  WebkitTextFillColor: '#000000',
                   opacity: (successMessage || isSubmitting) ? 0 : 1,
                   transition: 'opacity 0.5s ease'
                 }}

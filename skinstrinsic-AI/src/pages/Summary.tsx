@@ -1,6 +1,11 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+
+type AcceptedDemographics = { race: string; age: string; gender: string } | undefined;
 
 function Summary() {
+  const location = useLocation();
+  const state = location.state as { acceptedDemographics?: { race: string; age: string; gender: string } } | null;
+  const accepted: AcceptedDemographics = state?.acceptedDemographics;
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <style>
@@ -30,6 +35,31 @@ function Summary() {
           Detailed Summary
         </h1>
         <div className="summary-card bg-white rounded-lg shadow-md p-8 mb-6">
+          {accepted && (
+            <section className="mb-8">
+              <h2 className="summary-section-title text-2xl font-semibold text-gray-900 mb-4">Accepted Demographics</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 border border-gray-200 rounded-lg">
+                  <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">Age</div>
+                  <div className="text-gray-900 font-semibold">{accepted.age}</div>
+                </div>
+                <div className="p-4 border border-gray-200 rounded-lg">
+                  <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">Gender</div>
+                  <div className="text-gray-900 font-semibold">{accepted.gender}</div>
+                </div>
+                <div className="p-4 border border-gray-200 rounded-lg">
+                  <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">Race</div>
+                  <div className="text-gray-900 font-semibold">{accepted.race}</div>
+                </div>
+              </div>
+              <div className="mt-4 text-sm text-gray-600">
+                If any of these are incorrect, you can
+                <Link to="/demographics" className="ml-1 text-blue-600 hover:underline">go back</Link>
+                
+                to adjust and accept again.
+              </div>
+            </section>
+          )}
           <section className="mb-8">
             <h2 className="summary-section-title text-2xl font-semibold text-gray-900 mb-4">Overall Assessment</h2>
             <p className="text-gray-600 leading-relaxed">
