@@ -503,7 +503,7 @@ function Capture() {
 
       {/* Always render content; overlay loader while preparing */}
       {(!isPreviewReady) && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(to bottom, rgba(239,246,255,0.9), rgba(255,255,255,0.9))' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(to bottom, #EFF6FF, #FFFFFF)' }}>
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px', minWidth: '300px' }}>
             <img src={rectangleBig} alt="Big rectangle" style={{ position: 'absolute', top: '50%', left: '50%', zIndex: 1, width: '280px', height: 'auto', filter: 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5))', opacity: 0.9, animation: 'rotateFast 20s linear infinite' }} />
             <img src={rectangleMedium} alt="Medium rectangle" style={{ position: 'absolute', top: '50%', left: '50%', zIndex: 2, width: '230px', height: 'auto', filter: 'drop-shadow(0 0 10px rgba(0, 0, 0, 0.6))', opacity: 0.95, animation: 'rotateMedium 30s linear infinite' }} />
