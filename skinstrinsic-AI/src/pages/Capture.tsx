@@ -19,6 +19,9 @@ function Capture() {
   const [needsPlayInteraction, setNeedsPlayInteraction] = useState(false);
   const [showStartPrompt, setShowStartPrompt] = useState(false);
   const [triedAlternateFacing, setTriedAlternateFacing] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const [lastError, setLastError] = useState<{name?: string; message?: string}>({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,11 +30,27 @@ function Capture() {
     const t = setTimeout(() => {
       if (isCameraLoading) setShowStartPrompt(true);
     }, 1500);
+    // Video element event listeners for diagnostics
+    const v = videoRef.current;
+    const addLog = (msg: string) => setDebugLog(prev => [...prev.slice(-100), `${new Date().toLocaleTimeString()} ${msg}`]);
+    const handlers: Array<[keyof HTMLVideoElementEventMap, (e: Event) => void]> = [
+      ['loadedmetadata', () => addLog('video loadedmetadata')],
+      ['canplay', () => addLog('video canplay')],
+      ['playing', () => addLog('video playing')],
+      ['pause', () => addLog('video pause')],
+      ['stalled', () => addLog('video stalled')],
+      ['suspend', () => addLog('video suspend')],
+      ['waiting', () => addLog('video waiting')],
+      ['error', () => addLog('video error')]
+    ];
+    if (v) handlers.forEach(([evt, h]) => v.addEventListener(evt, h));
+
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
       }
+      if (v) handlers.forEach(([evt, h]) => v.removeEventListener(evt, h));
       clearTimeout(t);
     };
   }, []);
@@ -74,6 +93,7 @@ function Capture() {
           // Some browsers require a user gesture to play
           setNeedsPlayInteraction(true);
           console.warn(e);
+          setLastError({ name: (e as any)?.name, message: (e as any)?.message });
         }
       }
       setError(null);
@@ -92,6 +112,7 @@ function Capture() {
     } catch (err: unknown) {
       // Fallback with very loose constraints
       console.error(err);
+      setLastError({ name: (err as any)?.name, message: (err as any)?.message });
       try {
         const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         streamRef.current = fallbackStream;
@@ -104,6 +125,7 @@ function Capture() {
           } catch (e) {
             setNeedsPlayInteraction(true);
             console.warn(e);
+            setLastError({ name: (e as any)?.name, message: (e as any)?.message });
           }
         }
         setError(null);
@@ -120,6 +142,7 @@ function Capture() {
           friendly = 'Requested resolution not supported. Try again with default settings.';
         }
         setError(friendly);
+        setLastError({ name: (innerErr as any)?.name, message: (innerErr as any)?.message });
       } finally {
         setIsCameraLoading(false);
       }
@@ -127,32 +150,50 @@ function Capture() {
   };
 
   const switchFacingMode = async () => {
-    // Toggle between user and environment to recover from black preview on some devices
-    const useEnvironment = !triedAlternateFacing;
+    // Try to switch to an alternate video input to recover from black preview
     setTriedAlternateFacing(true);
     try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const currentTrack = streamRef.current?.getVideoTracks()[0] || null;
+      const currentId = currentTrack?.getSettings()?.deviceId;
+      const videoInputs = devices.filter(d => d.kind === 'videoinput');
+      const alternate = videoInputs.find(d => d.deviceId && d.deviceId !== currentId) || videoInputs[0];
+
       // Stop current stream
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop());
         streamRef.current = null;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: useEnvironment ? { exact: 'environment' } : { exact: 'user' },
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        },
-        audio: false
-      });
-      streamRef.current = stream;
+
+      let constraints: MediaStreamConstraints = { video: true, audio: false };
+      if (alternate?.deviceId) {
+        constraints = { video: { deviceId: { exact: alternate.deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false };
+      } else {
+        // Fall back to ideal facingMode instead of exact to avoid OverconstrainedError
+        constraints = { video: { facingMode: { ideal: 'environment' } as any, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false };
+      }
+
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (e: any) {
+        // If still overconstrained, last fallback
+        if (e?.name === 'OverconstrainedError') {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } else {
+          throw e;
+        }
+      }
+      streamRef.current = stream!;
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+        videoRef.current.srcObject = stream!;
         try { videoRef.current.setAttribute('playsinline', 'true'); } catch {}
         await videoRef.current.play();
       }
       setError(null);
     } catch (e) {
       console.warn('Alternate facing failed', e);
+      setLastError({ name: (e as any)?.name, message: (e as any)?.message });
     }
   };
 
@@ -661,6 +702,41 @@ function Capture() {
               </>
             )}
           </div>
+
+          {/* Debug panel */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+            <button onClick={() => setDebugOpen(v => !v)} style={{ fontFamily: 'Roobert TRIAL, sans-serif', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', padding: '6px 10px', backgroundColor: '#111827', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Toggle Debug</button>
+          </div>
+          {debugOpen && (
+            <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '12px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '12px', color: '#111827', marginBottom: '16px', maxHeight: '220px', overflow: 'auto' }}>
+              <div style={{ marginBottom: '8px' }}>
+                <strong>Video:</strong>{' '}
+                {(() => {
+                  const v = videoRef.current;
+                  if (!v) return 'ref: null';
+                  return `w=${v.videoWidth} h=${v.videoHeight} ready=${v.readyState} time=${v.currentTime.toFixed(2)} paused=${v.paused}`;
+                })()}
+              </div>
+              <div style={{ marginBottom: '8px' }}>
+                <strong>Track:</strong>{' '}
+                {(() => {
+                  const t = streamRef.current?.getVideoTracks()[0];
+                  if (!t) return 'none';
+                  const s = t.getSettings();
+                  return `ready=${t.readyState} muted=${(videoRef.current as any)?.muted ?? false} label="${t.label}" dev=${s.deviceId || ''} facing=${(s as any).facingMode || ''} ${s.width || ''}x${s.height || ''} fps=${s.frameRate || ''}`;
+                })()}
+              </div>
+              {lastError?.name && (
+                <div style={{ marginBottom: '8px', color: '#B91C1C' }}>
+                  <strong>LastError:</strong> {lastError.name}: {lastError.message}
+                </div>
+              )}
+              <div>
+                <strong>Events:</strong>
+                <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{debugLog.slice(-12).join('\n')}</pre>
+              </div>
+            </div>
+          )}
 
           <canvas ref={canvasRef} style={{ display: 'none' }} />
 
