@@ -89,6 +89,19 @@ function Result() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <style>{`
+        @media (max-width: 768px) {
+          .result-header-left { left: 16px !important; top: 20px !important; }
+        }
+        /* Modal responsiveness */
+        @media (max-width: 600px) {
+          .result-modal { padding: 24px !important; width: 92vw !important; }
+          .result-modal h2 { font-size: 20px !important; line-height: 28px !important; }
+          .result-modal p { font-size: 14px !important; line-height: 20px !important; }
+          .result-modal-actions { flex-direction: column !important; gap: 12px !important; }
+          .result-modal-actions button { width: 100% !important; padding: 12px 16px !important; }
+        }
+      `}</style>
       
       
       <Header 
@@ -395,6 +408,7 @@ function Result() {
               width: '90%',
               boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)'
             }}
+            className="result-modal"
             onClick={(e) => e.stopPropagation()}
           >
             <h2
@@ -426,7 +440,7 @@ function Result() {
             >
               We need access to your camera to capture your photo for skin analysis.
             </p>
-            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }} className="result-modal-actions">
               <button
                 onClick={handleDenyCamera}
                 style={{
@@ -492,7 +506,7 @@ function Result() {
         label="BACK" 
         icon={arrowLeft}
         className="result-back-button"
-        position={{ bottom: '32px', left: '32px' }}
+        position={{ bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))', left: '24px' }}
       />
 
       {/* Upload/analyzing overlay for gallery flow */}
@@ -516,7 +530,7 @@ function Result() {
             borderRadius: '16px',
             padding: '48px',
             textAlign: 'center',
-            minWidth: '400px',
+            width: 'min(90vw, 500px)',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)'
           }}>
             <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '200px', minWidth: '200px', marginBottom: '24px' }}>

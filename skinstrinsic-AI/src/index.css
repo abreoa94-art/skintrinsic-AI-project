@@ -39,7 +39,49 @@
 /* Tablet adjustments */
 @media (max-width: 1024px) {
   .result-main {
-    gap: 240px;
+    gap: 160px;
+  }
+  .result-icon-container {
+    width: 520px !important;
+    height: 520px !important;
+  }
+  .result-rectangle-big { width: 480px !important; }
+  .result-rectangle-medium { width: 390px !important; }
+  .result-rectangle-small { width: 300px !important; }
+  .result-icon { width: 104px !important; height: 104px !important; }
+}
+
+/* Narrow tablets / 13" windows at ~860px: stack columns */
+@media (max-width: 900px) {
+  .result-main {
+    flex-direction: column;
+    gap: 56px;
+    padding: 0 16px;
+  }
+  .result-icon-container {
+    width: min(420px, 92vw) !important;
+    height: min(420px, 92vw) !important;
+  }
+  .result-rectangle-big { width: min(380px, 84vw) !important; }
+  .result-rectangle-medium { width: min(300px, 66vw) !important; }
+  .result-rectangle-small { width: min(220px, 48vw) !important; }
+  .result-icon { width: 96px !important; height: 96px !important; }
+
+  /* Hide vector and ellipse; place title under the image */
+  .result-vector,
+  .result-ellipse { display: none !important; }
+  .result-callout .result-label {
+    left: 50% !important;
+    top: calc(50% + 64px) !important; /* icon half (48) + 16px spacing */
+    transform: translateX(-50%) !important;
+    text-align: center !important;
+  }
+}
+
+/* Small monitor / iPad landscape adjustments */
+@media (max-width: 1366px) {
+  .result-main {
+    gap: 160px;
   }
   .result-icon-container {
     width: 520px !important;
@@ -128,4 +170,14 @@
   .result-rectangle-medium { width: min(220px, 66vw) !important; }
   .result-rectangle-small { width: min(160px, 48vw) !important; }
   .result-icon { width: 72px !important; height: 72px !important; }
+}
+
+/* 1440px and below (but above tablets) */
+@media (max-width: 1440px) and (min-width: 1025px) {
+  .result-main { gap: 200px; }
+  .result-icon-container { width: 560px !important; height: 560px !important; }
+  .result-rectangle-big { width: 520px !important; }
+  .result-rectangle-medium { width: 420px !important; }
+  .result-rectangle-small { width: 330px !important; }
+  .result-icon { width: 112px !important; height: 112px !important; }
 }
