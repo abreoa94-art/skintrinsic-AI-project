@@ -121,7 +121,8 @@ function Demographics() {
       gender: selectedGender.type,
     };
     const apiResponse = location.state?.apiResponse;
-    navigate('/summary', { state: { apiResponse, acceptedDemographics: accepted } });
+    // Summary page temporarily removed; route back to Analysis for now
+    navigate('/analysis', { state: { apiResponse, acceptedDemographics: accepted } });
   };
 
   return (

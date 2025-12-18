@@ -5,7 +5,6 @@ import Capture from './pages/Capture';
 import Result from './pages/Result';
 import Analysis from './pages/Analysis';
 import Demographics from './pages/Demographics';
-import Summary from './pages/Summary';
 
 function App() {
   return (
@@ -17,7 +16,6 @@ function App() {
         <Route path="/result" element={<Result />} />
         <Route path="/analysis" element={<Analysis />} />
         <Route path="/demographics" element={<Demographics />} />
-        <Route path="/summary" element={<Summary />} />
       </Routes>
     </Router>
   );
